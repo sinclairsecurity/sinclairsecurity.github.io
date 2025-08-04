@@ -28,6 +28,77 @@
 
 <div id="main_content_wrap" class="outer">
     <section id="main_content" class="inner">
+        <p>In my research with Linux security, I inevitably stumbled upon <strong>capabilities</strong>, which are ways to give an executable fine-grained and specific privileged permissions that it can leverage without requiring full administrator privileges. You can learn more about Linux capabilities here: <embed src="../tutorials/linux-capabilities.html" />Linux Capabilities.</p>
+<p>To aid me in my research, I wrote a utilitiy to help me perform quick analysis called <code>bitcap</code>. <code>bitcap</code> is a very simple, very fast way to quickly get the allowed capabilities out of a hexadecimal string. You will find capabilities reported as hexadecimal numbers quite often when exploring processes and their permissions.</p>
+<p><code>bitcap</code> takes in a bitmask as hexadecimal and prints the capabilities associated with it. For instance:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="ex">chris@sinclairsecurity</span>:~$ bitcap 0000000000001ff0</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="ex">Capabilities</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a><span class="ex">CAP_FSETID</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a><span class="ex">CAP_KILL</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a><span class="ex">CAP_SETGID</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a><span class="ex">CAP_SETUID</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true"></a><span class="ex">CAP_SETPCAP</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true"></a><span class="ex">CAP_LINUX_IMMUTABLE</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true"></a><span class="ex">CAP_NET_BIND_SERVICE</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true"></a><span class="ex">CAP_NET_BROADCAST</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true"></a><span class="ex">CAP_NET_ADMIN</span></span></code></pre></div>
+<p>Above, the hexadecimal number <code>0x0000000000001ff0</code> converts to</p>
+<pre><code>0000000000000000000000000000000000000000000000000001111111110000</code></pre>
+<p>in binary, with bits 0 - 50 unset, bits 51 - 59 set, and bits 60-63 unset. This means the capabilities defined at places 51 through 59 are turned <strong>on</strong>, and the executable will have those permissions.</p>
+<p>The capabilities of a process can normally be found by running <code>cat /proc/&lt;PID&gt;/status</code>, which are presented in hexadecimal. We can chain together a few commands to find the permissions of any running process we would like:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="ex">chris@sinclairsecurity</span>:~$ PROCESS=kthreadd<span class="kw">;</span> <span class="fu">cat</span> /proc/<span class="va">$(</span><span class="fu">pidof</span> <span class="va">${PROCESS}</span> <span class="kw">|</span> <span class="fu">awk</span> <span class="st">&#39;{print $1}&#39;</span><span class="va">)</span>/status <span class="kw">|</span> <span class="fu">grep</span> CapEff <span class="kw">|</span> <span class="fu">awk</span> <span class="st">&#39;{print $2}&#39;</span> <span class="kw">|</span> <span class="fu">xargs</span> bitcap</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="ex">Capabilities</span>:</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a><span class="ex">CAP_CHOWN</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a><span class="ex">CAP_DAC_OVERRIDE</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a><span class="ex">CAP_DAC_READ_SEARCH</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a><span class="ex">CAP_FOWNER</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a><span class="ex">CAP_FSETID</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true"></a><span class="ex">...</span></span></code></pre></div>
+<p>How is this done?</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="dt">const</span> <span class="dt">char</span> *cap_names[] = {</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a>    <span class="st">&quot;CAP_CHOWN&quot;</span>, <span class="st">&quot;CAP_DAC_OVERRIDE&quot;</span>, <span class="st">&quot;CAP_DAC_READ_SEARCH&quot;</span>,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>    <span class="st">&quot;CAP_FOWNER&quot;</span>, <span class="st">&quot;CAP_FSETID&quot;</span>, <span class="st">&quot;CAP_KILL&quot;</span>, <span class="st">&quot;CAP_SETGID&quot;</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>    <span class="st">&quot;CAP_SETUID&quot;</span>, <span class="st">&quot;CAP_SETPCAP&quot;</span>, <span class="st">&quot;CAP_LINUX_IMMUTABLE&quot;</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>    <span class="st">&quot;CAP_NET_BIND_SERVICE&quot;</span>, <span class="st">&quot;CAP_NET_BROADCAST&quot;</span>, <span class="st">&quot;CAP_NET_ADMIN&quot;</span>,</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a>    <span class="st">&quot;CAP_NET_RAW&quot;</span>, <span class="st">&quot;CAP_IPC_LOCK&quot;</span>, <span class="st">&quot;CAP_IPC_OWNER&quot;</span>,</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a>    <span class="st">&quot;CAP_SYS_MODULE&quot;</span>, <span class="st">&quot;CAP_SYS_RAWIO&quot;</span>, <span class="st">&quot;CAP_SYS_CHROOT&quot;</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true"></a>    <span class="st">&quot;CAP_SYS_PTRACE&quot;</span>, <span class="st">&quot;CAP_SYS_PACCT&quot;</span>, <span class="st">&quot;CAP_SYS_ADMIN&quot;</span>,</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true"></a>    <span class="st">&quot;CAP_SYS_BOOT&quot;</span>, <span class="st">&quot;CAP_SYS_NICE&quot;</span>, <span class="st">&quot;CAP_SYS_RESOURCE&quot;</span>,</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true"></a>    <span class="st">&quot;CAP_SYS_TIME&quot;</span>, <span class="st">&quot;CAP_SYS_TTY_CONFIG&quot;</span>, <span class="st">&quot;CAP_MKNOD&quot;</span>,</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true"></a>    <span class="st">&quot;CAP_LEASE&quot;</span>, <span class="st">&quot;CAP_AUDIT_WRITE&quot;</span>, <span class="st">&quot;CAP_AUDIT_CONTROL&quot;</span>,</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true"></a>    <span class="st">&quot;CAP_SETFCAP&quot;</span>, <span class="st">&quot;CAP_MAC_OVERRIDE&quot;</span>, <span class="st">&quot;CAP_MAC_ADMIN&quot;</span>,</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true"></a>    <span class="st">&quot;CAP_SYSLOG&quot;</span>, <span class="st">&quot;CAP_WAKE_ALARM&quot;</span>, <span class="st">&quot;CAP_BLOCK_SUSPEND&quot;</span>,</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true"></a>    <span class="st">&quot;CAP_AUDIT_READ&quot;</span>, <span class="st">&quot;CAP_PERFMON&quot;</span>, <span class="st">&quot;CAP_BPF&quot;</span>, <span class="st">&quot;CAP_CHECKPOINT_RESTORE&quot;</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true"></a>};</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true"></a></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true"></a><span class="dt">void</span> map(<span class="dt">uint64_t</span> *bitmask)</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true"></a>{</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true"></a>   printf(<span class="st">&quot;Capabilities:</span><span class="sc">\n</span><span class="st">&quot;</span>);</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true"></a>   <span class="cf">for</span> (<span class="dt">int</span> i = <span class="dv">0</span>; i &lt; <span class="dv">41</span>; i++) {</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true"></a>       <span class="cf">if</span> ((*bitmask) &amp; (<span class="dv">1</span><span class="bu">ULL</span> &lt;&lt; i)) {</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true"></a>           printf(<span class="st">&quot;%s</span><span class="sc">\n</span><span class="st">&quot;</span>, cap_names[i]);</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true"></a>       }</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true"></a>   }</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true"></a>}</span></code></pre></div>
+<p>As you can see, I first spell out a <code>char</code> pointer to an array of capabilities, ensuring their order matches with the Linux kernel source code at <embed src="https://github.com/torvalds/linux/blob/master/include/linux/capability.h" />.</p>
+<p>Inside the <code>map()</code> function (called by <code>main()</code>), I take in a 64-bit bitmask, and for the 41 capabilities listed, if a <strong>bitwise <code>AND</code></strong> between the passed bitmask and a left-shifted <code>1</code> shifted over by the amount of iterations passed match - then that specific bit in the bitmask is enabled, and I should print the capability associated with the iteration.</p>
+<p>To better illustrate this point, let’s use a simple bitmask of <code>0x2</code>, or <code>10</code> in binary, or in a 64-bit representation:</p>
+<pre><code>0000000000000000000000000000000000000000000000000000000000000010</code></pre>
+<p>In the first loop, we do a bitwise <code>AND</code> of</p>
+<pre><code>...0010</code></pre>
+<p>and</p>
+<pre><code>...0001</code></pre>
+<p>which results in</p>
+<pre><code>...0000</code></pre>
+<p>and no capability is printed.</p>
+<p>In the next loop, we do a bitwise <code>AND</code> of</p>
+<pre><code>...0010</code></pre>
+<p>and</p>
+<pre><code>...0010</code></pre>
+<p>which results in</p>
+<pre><code>...0010</code></pre>
+<p>Since enabled bit matches, we print the capability associated with this iteration: <code>cap_names[1]</code>, or <code>CAP_DAC_OVERRIDE</code>.</p>
+<p>View more on GitHub: <img src="https://github.com/sinclairsecurity/bitcap/tree/master" alt="bitcap" /></p>
 
     </section>
   </div>
