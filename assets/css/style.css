@@ -164,3 +164,101 @@ footer {
   background-color: #00ffc3;
   color: #000;
 }
+
+/* Layout structure from Pandoc */
+#main_content_wrap.outer {
+  padding: 2rem;
+  background-color: #121417;
+}
+
+#main_content.inner {
+  max-width: 900px;
+  margin: auto;
+  background-color: #181a1f;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 0 10px #00ffc320;
+}
+
+/* Paragraphs and strong emphasis */
+#main_content p {
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: #e0e0e0;
+}
+
+#main_content strong {
+  color: #00ffc3;
+}
+
+/* Inline code */
+#main_content code {
+  background-color: #222;
+  color: #00ffc3;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.95rem;
+}
+
+/* Code blocks */
+.sourceCode pre,
+#main_content pre {
+  background-color: #1e1e1e;
+  color: #00ffc3;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  border: 1px solid #333;
+}
+
+/* Language-specific highlight (fallback for Pandoc) */
+.sourceCode.bash pre,
+.sourceCode.c pre {
+  background-color: #16191d;
+}
+
+/* Embedded content */
+embed {
+  display: inline-block;
+  margin: 0 0.25rem;
+  vertical-align: middle;
+  height: 1.1em;
+  width: 1.1em;
+}
+
+/* Image preview at end (GitHub, etc.) */
+#main_content img {
+  max-width: 100%;
+  border-radius: 6px;
+  margin-top: 1rem;
+  display: block;
+}
+
+/* Lists */
+#main_content ul,
+#main_content ol {
+  margin-left: 2rem;
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+#main_content li {
+  margin-bottom: 0.5rem;
+}
+
+/* Responsive improvement */
+@media screen and (max-width: 768px) {
+  #main_content.inner {
+    padding: 1rem;
+  }
+
+  pre, code {
+    font-size: 0.85rem;
+  }
+}
